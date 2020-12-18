@@ -1,6 +1,6 @@
 # webusb-arduino-react-example
 
-This repository is the react version of https://github.com/webusb/arduino repository.
+This repository is the react version of the demo you can find at https://github.com/webusb/arduino repository.
 
 Contains two parts: sketch code and website code, demonstrating the use of webusb on arduino.
 
