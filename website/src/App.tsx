@@ -36,6 +36,16 @@ const App: React.FunctionComponent<any> = () => {
     setPort(null);
   }
 
+  const send = async () => {
+    if (!port) {
+      return;
+    }
+    
+    let view = new Uint8Array([r, g, b]).buffer;
+    await port.send(view);
+    await port.readLoop();
+  }
+  
   useEffect(() => {
     const checkIfAlreadyConnected = async () => {
       const devices = await Serial.getPorts();
@@ -49,17 +59,6 @@ const App: React.FunctionComponent<any> = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   useEffect(() => {
-    const send = async () => {
-      if (!port) {
-        return;
-      }
-      
-      let view = new Uint8Array([r, g, b]).buffer;
-      console.log(view)
-      await port.send(view);
-      await port.readLoop();
-    }
-
     send();
   }, [r, g, b]); // eslint-disable-line react-hooks/exhaustive-deps
 
