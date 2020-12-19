@@ -9,13 +9,20 @@ const App: React.FunctionComponent<any> = () => {
   const [port, setPort] = useState<Port | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  const connect = async () => {
-    const p = await Serial.requestPort();
-    console.log(p);
-    setPort(p);
+  const connect = async (pIn: Port | null) => {
+    let p = pIn;
+    if (!p) {
+      p = await Serial.requestPort();
+      setPort(p);
+    }
+    // if we still don't have port defined
+    if (!p) {
+      return;
+    }
     try {
       await p.connect();
     } catch(e) {
+      console.log(e);
       setErrorMessage(JSON.stringify(e));
     }
   }
@@ -28,15 +35,32 @@ const App: React.FunctionComponent<any> = () => {
     await port.disconnect();
     setPort(null);
   }
-  
+
   useEffect(() => {
-    if (!port) {
-      return;
+    const checkIfAlreadyConnected = async () => {
+      const devices = await Serial.getPorts();
+      if (devices.length > 0) {
+        setPort(devices[0]);
+        await connect(devices[0]);
+      }
     }
 
-    let view = new Uint8Array([r, g, b]).buffer;
-    console.log(view)
-    port.send(view);
+    checkIfAlreadyConnected();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  useEffect(() => {
+    const send = async () => {
+      if (!port) {
+        return;
+      }
+      
+      let view = new Uint8Array([r, g, b]).buffer;
+      console.log(view)
+      await port.send(view);
+      await port.readLoop();
+    }
+
+    send();
   }, [r, g, b]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -45,16 +69,16 @@ const App: React.FunctionComponent<any> = () => {
         {port ? (
             <button onClick={disconnect}>Disconnect</button>
           ) : (
-            <button onClick={connect}>Connect</button>
+            <button onClick={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => connect(port)}>Connect</button>
         )}
       </p>
       <p>
         {errorMessage}
       </p>
       <div>
-        <input type="range" min="0" max="255" value={r} onChange={(e) => setR(parseInt(e.target.value))} id="red"/>
-        <input type="range" min="0" max="255" value={g} onChange={(e) => setG(parseInt(e.target.value))} id="green"/>
-        <input type="range" min="0" max="255" value={b} onChange={(e) => setB(parseInt(e.target.value))} id="blue"/>
+        <input disabled={!port} type="range" min="0" max="255" value={r} onChange={(e) => setR(parseInt(e.target.value))} id="red"/>
+        <input disabled={!port} type="range" min="0" max="255" value={g} onChange={(e) => setG(parseInt(e.target.value))} id="green"/>
+        <input disabled={!port} type="range" min="0" max="255" value={b} onChange={(e) => setB(parseInt(e.target.value))} id="blue"/>
       </div>
     </div>
   );

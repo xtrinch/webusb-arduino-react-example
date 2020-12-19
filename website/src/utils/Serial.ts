@@ -16,37 +16,49 @@ const filters: USBDeviceFilter[] = [
 ];
 
 export class Serial {
+  // check if we already have permission to access any connected devices
   public static async getPorts(): Promise<Port[]> {
     const devices = await navigator.usb.getDevices();
     return devices.map(device => new Port(device));
   };
 
-  public static async requestPort() {
-    const device = await navigator.usb.requestDevice({ filters });
-    return new Port(device);
+  // if this is the first time the user has visited the page then it won’t have permission to access any devices
+  public static async requestPort(ownFilters?: USBDeviceFilter[]): Promise<Port | null> {
+    let device;
+    
+    try {
+      device = await navigator.usb.requestDevice({ filters: ownFilters ? ownFilters : filters });
+    } catch(e) {
+      // if we don't select any device, this requestDevice throws an error
+      return null;
+    } finally {
+      if (device) {
+        return new Port(device);
+      }
+      return null;
+    }
   }
 }
 
 export class Port {
   public device_: USBDevice;
   public interfaceNumber_: number;
-  public endpointIn_: number;
-  public endpointOut_: number;
+
+  public interface: USBInterface;
+  public endpointIn: USBEndpoint;
+  public endpointOut: USBEndpoint;
 
   constructor(device: USBDevice) {
     this.device_ = device;
-    this.interfaceNumber_ = 2;  // original interface number of WebUSB Arduino demo
-    this.endpointIn_ = 5;       // original in endpoint ID of WebUSB Arduino demo
-    this.endpointOut_ = 4;      // original out endpoint ID of WebUSB Arduino demo
+    this.interfaceNumber_ = 2;  // interface number defined in webusb arduino library
   }
   
-  public async send(data: BufferSource) {
-    const result = await this.device_.transferOut(this.endpointOut_, data);
-    await this.readLoop();
+  public async send(data: BufferSource): Promise<USBOutTransferResult> {
+    const result = await this.device_.transferOut(this.endpointOut.endpointNumber, data);
     return result;
   };
 
-  public async disconnect() {
+  public async disconnect(): Promise<void> {
     await this.device_.controlTransferOut({
       requestType: 'class',
       recipient: 'interface',
@@ -54,7 +66,10 @@ export class Port {
       value: 0x00,
       index: this.interfaceNumber_
     });
-    this.device_.close();
+    await this.device_.close();
+    this.interface = null;
+    this.endpointIn = null;
+    this.endpointOut = null;
   };
   
   public onReceive = (data: DataView | undefined) => {
@@ -62,13 +77,14 @@ export class Port {
     console.log(textDecoder.decode(data));
   }
 
-  public async readLoop() {
+  public async readLoop(): Promise<USBInTransferResult | null> {
     try {
-      const result = await this.device_.transferIn(this.endpointIn_, 64);
+      const result = await this.device_.transferIn(this.endpointIn.endpointNumber, 64);
       this.onReceive(result.data);
     } catch(e) {
       console.log(e);
-      return;
+    } finally {
+      return null;
     }
   };
 
@@ -79,33 +95,30 @@ export class Port {
       this.device_.selectConfiguration(1);
     }
 
-    let configurationInterfaces = this.device_.configuration?.interfaces || [];
-    configurationInterfaces.forEach(element => {
-      element.alternates.forEach(elementalt => {
-        if (elementalt.interfaceClass !== 0xff) {
-          return;
-        }
+    // find the interface which has 0xff interface class as its alternate and its interface number is 2
+    this.interface = (this.device_.configuration.interfaces || []).find(
+      c => !!(c.alternates.find(a => a.interfaceClass === 0xff)) && c.interfaceNumber === this.interfaceNumber_
+    );
+    if (!this.interface) {
+      throw new Error('Interface not found');
+    }
+    let alternate = this.interface.alternates[0];
 
-        this.interfaceNumber_ = element.interfaceNumber;
-        elementalt.endpoints.forEach((elementendpoint) => {
-          if (elementendpoint.direction === "out") {
-            this.endpointOut_ = elementendpoint.endpointNumber;
-          }
-          if (elementendpoint.direction === "in") {
-            this.endpointIn_ =elementendpoint.endpointNumber;
-          }
-        })
-      })
-    })
+    this.endpointIn = alternate.endpoints.find(e => e.direction === "in");
+    this.endpointOut = alternate.endpoints.find(e => e.direction === "out");
 
-    await this.device_.claimInterface(this.interfaceNumber_);
-    await this.device_.selectAlternateInterface(this.interfaceNumber_, 0);
+    if (!this.endpointIn || !this.endpointOut) {
+      throw new Error('Endpoints not found');
+    }
+
+    await this.device_.claimInterface(this.interface.interfaceNumber);
+    await this.device_.selectAlternateInterface(this.interface.interfaceNumber, 0);
     await this.device_.controlTransferOut({
       requestType: 'class',
       recipient: 'interface',
       request: 0x22,
       value: 0x01,
-      index: this.interfaceNumber_
+      index: this.interface.interfaceNumber
     });
   };
 }
