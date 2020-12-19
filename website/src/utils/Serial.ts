@@ -19,7 +19,6 @@ export class Serial {
   // check if we already have permission to access any connected devices
   public static async getPorts(): Promise<Port[]> {
     const devices = await navigator.usb.getDevices();
-    console.log(devices);
     return devices.map(device => new Port(device));
   };
 
@@ -28,15 +27,12 @@ export class Serial {
     let device;
     
     try {
-      //const test = await navigator.usb.requestDevice({ filters: [] })
-      //console.log(test)
       device = await navigator.usb.requestDevice({ filters: ownFilters ? ownFilters : filters });
     } catch(e) {
       console.log(e);
       // if we don't select any device, this requestDevice throws an error
       return null;
     } finally {
-      console.log(device)
       if (device) {
         return new Port(device);
       }
@@ -89,9 +85,7 @@ export class Port {
   };
 
   public async connect() {
-    console.log("opening")
     await this.device_.open();
-    console.log("opened")
     if (this.device_.configuration === null) {
       this.device_.selectConfiguration(1);
     }
@@ -100,12 +94,10 @@ export class Port {
     this.interface = (this.device_.configuration.interfaces || []).find(
       c => !!(c.alternates.find(a => a.interfaceClass === 0xff)) && c.interfaceNumber === this.interfaceNumber_
     );
-    console.log(this.interface)
     if (!this.interface) {
       throw new Error('Interface not found');
     }
     let alternate = this.interface.alternates[0];
-    console.log(alternate)
 
     this.endpointIn = alternate.endpoints.find(e => e.direction === "in");
     this.endpointOut = alternate.endpoints.find(e => e.direction === "out");
@@ -114,13 +106,9 @@ export class Port {
       throw new Error('Endpoints not found');
     }
 
-    console.log("1?")
-    console.log(this.interface.interfaceNumber)
     await this.device_.claimInterface(this.interface.interfaceNumber);
-    console.log("1.1?")
 
     await this.device_.selectAlternateInterface(this.interface.interfaceNumber, 0);
-    console.log("1.2?")
 
     await this.device_.controlTransferOut({
       requestType: 'class',
@@ -129,7 +117,5 @@ export class Port {
       value: 0x01,
       index: this.interface.interfaceNumber
     });
-    console.log("2?")
-    console.log(this.device_)
   };
 }

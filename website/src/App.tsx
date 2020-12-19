@@ -20,9 +20,7 @@ const App: React.FunctionComponent<any> = () => {
       return;
     }
     try {
-      console.log("Beofre conect?")
       await p.connect();
-      console.log("after connect?")
     } catch(e) {
       console.log(e);
       setErrorMessage(JSON.stringify(e));
