@@ -1,3 +1,5 @@
+#define USB_VERSION 0x210
+#include <Arduino.h>
 #include <WebUSB.h>
 
 /**
@@ -20,12 +22,10 @@ int color[3];
 int colorIndex;
 
 void setup() {
-  while (!Serial) {
-    ;
-  }
   Serial.begin(9600);
   Serial.write("Sketch begins.\r\n");
   Serial.flush();
+
   colorIndex = 0;
 }
 

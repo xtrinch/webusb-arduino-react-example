@@ -20,7 +20,9 @@ const App: React.FunctionComponent<any> = () => {
       return;
     }
     try {
+      console.log("Beofre conect?")
       await p.connect();
+      console.log("after connect?")
     } catch(e) {
       console.log(e);
       setErrorMessage(JSON.stringify(e));
@@ -32,7 +34,11 @@ const App: React.FunctionComponent<any> = () => {
       return;
     }
 
-    await port.disconnect();
+    try {
+      await port.disconnect();
+    } catch(e) {
+      console.log(e);
+    }
     setPort(null);
   }
 
@@ -42,8 +48,14 @@ const App: React.FunctionComponent<any> = () => {
     }
     
     let view = new Uint8Array([r, g, b]).buffer;
-    await port.send(view);
-    await port.readLoop();
+    try {
+      await port.send(view);
+      const read = await port.readLoop();
+      console.log(read);
+    } catch(e) {
+      console.log(e);
+      setPort(null);
+    }
   }
   
   useEffect(() => {
